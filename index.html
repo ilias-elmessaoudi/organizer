@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#151b2b">
+  <meta name="theme-color" content="#07050e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,6 +12,8 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <title>Organizer</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,10 +28,14 @@
 
     <main class="haupt">
       <header class="kopf">
-        <h1 id="titel">Heute</h1>
-        <label class="suche"><span id="lupe"></span><input id="suche" type="search" placeholder="Suchen"></label>
+        <div class="links"><small>O.R.G.A.N.I.Z.E.R · KXD Command Center</small><h1 id="titel">Heute</h1></div>
+        <div class="rechts">
+          <div class="status"><b id="status-titel">Phoenix Link Active</b><small id="status-unter">All Systems Nominal</small></div>
+          <span class="uhr-gross" id="uhr"></span>
+          <label class="suche"><span id="lupe"></span><input id="suche" type="search" placeholder="Suchen"></label>
+        </div>
       </header>
-      <div class="schnell" id="schnell">
+      <div class="schnell panel" id="schnell">
         <div class="art-wahl" id="art-wahl"></div>
         <div class="schnell-zeile">
           <input id="neu-text" placeholder="Neue Idee …" autocomplete="off" enterkeyhint="done">

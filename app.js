@@ -1,6 +1,8 @@
 // Organizer: Ideen, Aufgaben, Termine und Notizen – auf allen Geräten, Phoenix trägt per Sprache ein.
 // Daten liegen im selben Supabase-Projekt wie Heft (Tabelle "eintraege", art = "organizer").
 
+import { galaxie } from './galaxie.js';
+
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s = '') => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ART = 'organizer';
@@ -17,15 +19,16 @@ const I = {
   mikro: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
   haken: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   phoenix: '<svg viewBox="0 0 24 24"><path d="M12 3c2 3 5 4 5 8a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3 0-5 1-7z"/></svg>',
+  galaxie: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="8.5" ry="3.2" transform="rotate(-25 12 12)"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>',
   logo: '<svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h9M5 17h6"/><circle cx="18" cy="16" r="3"/></svg>',
 };
 
 const BEREICHE = {
-  business: { name: 'Business', farbe: 'var(--business)' },
-  stream: { name: 'Stream & Content', farbe: 'var(--stream)' },
-  privat: { name: 'Privat', farbe: 'var(--privat)' },
-  volleyball: { name: 'Volleyball', farbe: 'var(--volleyball)' },
-  sonstiges: { name: 'Sonstiges', farbe: 'var(--sonstiges)' },
+  business: { name: 'Business', farbe: 'var(--business)', hex: '#4c9dff' },
+  stream: { name: 'Stream & Content', farbe: 'var(--stream)', hex: '#c46bff' },
+  privat: { name: 'Privat', farbe: 'var(--privat)', hex: '#41f2a3' },
+  volleyball: { name: 'Volleyball', farbe: 'var(--volleyball)', hex: '#ffa94d' },
+  sonstiges: { name: 'Sonstiges', farbe: 'var(--sonstiges)', hex: '#9aa3c7' },
 };
 const TYPEN = { idee: 'Idee', aufgabe: 'Aufgabe', termin: 'Termin', notiz: 'Notiz' };
 
@@ -77,18 +80,28 @@ async function start() {
   client.auth.onAuthStateChange((_e, s) => sitzung(s));
 }
 
+// Statusanzeige oben rechts (wie bei Phoenix) und Uhr
+function statusZeigen(text, unter, fehler = false) {
+  $('#status-titel').textContent = text; $('#status-unter').textContent = unter;
+  $('#status-unter').style.color = fehler ? 'var(--warn)' : '';
+}
+setInterval(() => { $('#uhr').textContent = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }, 1000);
+addEventListener('offline', () => statusZeigen('Offline Mode', 'Changes queued', true));
+addEventListener('online', () => statusZeigen('Phoenix Link Active', 'All Systems Nominal'));
+
 function sitzung(s) {
   const vorher = zst.uid;
   zst.uid = s?.user?.id || null;
   $('#konto').className = 'konto' + (zst.uid ? '' : ' aus');
   $('#konto').innerHTML = `<i></i>${zst.uid ? esc(s.user.email) : 'Nicht angemeldet'}`;
   if (zst.uid && zst.uid !== vorher) { laden(); live(); }
-  if (!zst.uid) zeichnen();
+  if (!zst.uid) { zeichnen(); statusZeigen('Link Offline', 'Login required', true); }
+  else statusZeigen('Phoenix Link Active', navigator.onLine ? 'All Systems Nominal' : 'Offline · queued', !navigator.onLine);
 }
 
 async function laden() {
   const { data, error } = await client.from('eintraege').select('id, daten, geaendert, geloescht').eq('art', ART);
-  if (error) return hinweis('Laden fehlgeschlagen: ' + error.message);
+  if (error) { statusZeigen('Sync Error', error.message.slice(0, 40), true); return hinweis('Laden fehlgeschlagen: ' + error.message); }
   const offen = new Set(warteschlange().map((e) => e.id));
   for (const z of data) {
     if (offen.has(z.id)) continue;
@@ -174,21 +187,47 @@ function gefiltert(typ) {
 
 /* ================= Darstellung ================= */
 
-const ANSICHTEN = { heute: ['Heute', I.heute], idee: ['Ideen', I.idee], aufgabe: ['Aufgaben', I.aufgabe], termin: ['Termine', I.termin], notiz: ['Notizen', I.notiz], alle: ['Alles', I.alle] };
+const ANSICHTEN = { heute: ['Kommando', I.heute], galaxie: ['Galaxie', I.galaxie], idee: ['Ideen', I.idee], aufgabe: ['Aufgaben', I.aufgabe], termin: ['Termine', I.termin], notiz: ['Notizen', I.notiz], alle: ['Alles', I.alle] };
 
 function zeichnen() {
   const zahl = (t) => [...zst.eintraege.values()].filter((e) => e.typ === t && e.status !== 'erledigt' && e.status !== 'archiv').length;
   $('#navi').innerHTML = Object.entries(ANSICHTEN).map(([k, [n, ic]]) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ic}${n}${TYPEN[k] ? `<span class="zahl">${zahl(k) || ''}</span>` : ''}</button>`).join('')
     + '<div class="titel">Bereiche</div>' + Object.entries(BEREICHE).map(([k, b]) => `<button data-bereich="${k}" class="${zst.bereich === k ? 'an' : ''}"><span class="punkt" style="background:${b.farbe}"></span>${b.name}</button>`).join('');
-  $('#tabs').innerHTML = ['heute', 'idee', 'aufgabe', 'termin', 'alle'].map((k) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ANSICHTEN[k][1]}${ANSICHTEN[k][0]}</button>`).join('');
+  $('#tabs').innerHTML = ['heute', 'galaxie', 'idee', 'aufgabe', 'termin'].map((k) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ANSICHTEN[k][1]}${ANSICHTEN[k][0]}</button>`).join('');
   $('#titel').textContent = ANSICHTEN[zst.ansicht][0];
   $('#art-wahl').innerHTML = Object.entries(TYPEN).map(([k, n]) => `<button data-typ="${k}" class="${k === zst.neuTyp ? 'an' : ''}">${I[k]}${n}</button>`).join('');
   $('#neu-text').placeholder = { idee: 'Neue Idee …', aufgabe: 'Neue Aufgabe …', termin: 'Neuer Termin …', notiz: 'Neue Notiz …' }[zst.neuTyp];
   $('#filter').innerHTML = `<button data-bereich="alle" class="${zst.bereich === 'alle' ? 'an' : ''}">Alle</button>` + Object.entries(BEREICHE).map(([k, b]) => `<button data-bereich="${k}" class="${zst.bereich === k ? 'an' : ''}"><i style="background:${b.farbe}"></i>${b.name}</button>`).join('');
   const ziel = $('#inhalt');
   if (!zst.uid && !zst.eintraege.size) { ziel.innerHTML = anmeldeFormular(); return anmeldenVerdrahten(); }
-  ziel.innerHTML = ({ heute: heuteAnsicht, idee: ideenAnsicht, aufgabe: aufgabenAnsicht, termin: termineAnsicht, notiz: notizenAnsicht, alle: allesAnsicht })[zst.ansicht]();
+  ziel.innerHTML = ({ heute: heuteAnsicht, galaxie: galaxieAnsicht, idee: ideenAnsicht, aufgabe: aufgabenAnsicht, termin: termineAnsicht, notiz: notizenAnsicht, alle: allesAnsicht })[zst.ansicht]();
+  galaxieEinhaengen();
 }
+
+/* ================= Ideen-Galaxie ================= */
+
+let gx = null;
+const gxCanvas = document.createElement('canvas');
+function galaxieFeld(gross = false) {
+  return `<div class="panel galaxie-feld" id="galaxie-platz">
+    <div class="galaxie-kopf"><span>Ideen-Galaxie</span><small id="gx-statistik"></small></div>
+    <div class="legende">${Object.values(BEREICHE).map((b) => `<span><i style="background:${b.hex};box-shadow:0 0 6px ${b.hex}"></i>${b.name}</span>`).join('')}</div>
+    <div class="galaxie-fuss"><small>${gross ? 'Ziehen dreht · Rad / zwei Finger zoomen · Stern antippen öffnet' : 'Ziehen dreht · Stern antippen öffnet'}</small><b>${zst.uid ? 'ONLINE' : 'OFFLINE'}</b></div></div>`;
+}
+function galaxieEinhaengen() {
+  const platz = $('#galaxie-platz');
+  if (!platz) return;
+  platz.prepend(gxCanvas);
+  gx ||= galaxie(gxCanvas, {
+    farben: Object.fromEntries(Object.entries(BEREICHE).map(([k, b]) => [k, b.hex])),
+    namen: Object.fromEntries(Object.entries(BEREICHE).map(([k, b]) => [k, b.name])),
+    beiKlick: (e) => details(e.id),
+  });
+  gx.setzen(gefiltert().filter((e) => e.status !== 'archiv'));
+  const st = gx.statistik;
+  $('#gx-statistik').textContent = `${st.sterne} Sterne · ${st.verbindungen} Verbindungen`;
+}
+function galaxieAnsicht() { return `<div class="galaxie-gross">${galaxieFeld(true)}</div>`; }
 
 function karte(e) {
   const b = BEREICHE[e.bereich] || BEREICHE.sonstiges;
@@ -211,16 +250,21 @@ const liste = (zeilen, leer) => zeilen.length ? `<div class="liste">${zeilen.joi
 const abschnitt = (t, unter = '') => `<div class="abschnitt"><h2>${t}</h2><small>${unter}</small></div>`;
 
 function heuteAnsicht() {
-  const h = new Date().getHours();
-  const gruss = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 18 ? 'Hallo' : 'Guten Abend';
   const aufgaben = gefiltert('aufgabe').filter((e) => e.status !== 'erledigt' && (ueberfaellig(e) || istHeute(e.faellig) || (!e.faellig && e.prioritaet >= 3)))
     .sort((a, b) => (a.faellig || '9').localeCompare(b.faellig || '9'));
   const termine = gefiltert('termin').filter((e) => e.beginn && new Date(e.beginn) >= heuteStart() && new Date(e.beginn) < new Date(heuteStart().getTime() + 2 * 864e5)).sort((a, b) => a.beginn.localeCompare(b.beginn));
-  const ideen = gefiltert('idee').filter((e) => e.status !== 'archiv').sort((a, b) => b.erstellt - a.erstellt).slice(0, 6);
-  return `<p style="color:var(--text-2);margin:-4px 0 0">${gruss}! ${new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-    <div class="raster-heute"><div>${abschnitt('Termine', 'heute & morgen')}${liste(termine.map(terminZeile), 'Keine Termine. Sag: „Phoenix, trag mir … ein“.')}</div>
-    <div>${abschnitt('Zu erledigen', aufgaben.length ? aufgaben.length + ' offen' : '')}${liste(aufgaben.map(aufgabeZeile), 'Nichts fällig – stark!')}</div></div>
-    ${abschnitt('Neueste Ideen')}${ideen.length ? `<div class="karten">${ideen.map(karte).join('')}</div>` : '<div class="leer">Noch keine Ideen. Sag einfach: „Phoenix, ich hab eine Idee: …“</div>'}`;
+  const ideen = gefiltert('idee').filter((e) => e.status !== 'archiv').sort((a, b) => b.erstellt - a.erstellt).slice(0, 5);
+  const panel = (t, unter, inhalt) => `<div class="panel"><div class="panel-titel"><span>${t}</span><small>${unter}</small></div>${inhalt}</div>`;
+  return `<div class="kommando">
+    <div class="spalte">
+      ${panel('Termine', 'heute & morgen', termine.length ? `<div class="liste">${termine.map(terminZeile).join('')}</div>` : '<div class="leer">Keine Termine. Sag: „Phoenix, trag mir … ein“.</div>')}
+      ${panel('Zu erledigen', aufgaben.length ? aufgaben.length + ' offen' : 'alles klar', aufgaben.length ? `<div class="liste">${aufgaben.map(aufgabeZeile).join('')}</div>` : '<div class="leer">Nichts fällig.</div>')}
+    </div>
+    <div class="spalte mitte-spalte">${galaxieFeld()}</div>
+    <div class="spalte">
+      ${panel('Neueste Ideen', ideen.length + ' neu', ideen.length ? `<div class="karten">${ideen.map(karte).join('')}</div>` : '<div class="leer">Sag einfach: „Phoenix, ich hab eine Idee: …“</div>')}
+    </div>
+  </div>`;
 }
 function ideenAnsicht() {
   const l = gefiltert('idee').filter((e) => e.status !== 'archiv').sort((a, b) => b.erstellt - a.erstellt);
