@@ -2,6 +2,7 @@
 // Daten liegen im selben Supabase-Projekt wie Heft (Tabelle "eintraege", art = "organizer").
 
 import { galaxie } from './galaxie.js';
+import { zeitErkennen, vorkommen, wiederholungText } from './zeitparser.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s = '') => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -178,6 +179,24 @@ const tagText = (iso, mitZeit = true) => {
 const ueberfaellig = (e) => e.faellig && e.status !== 'erledigt' && new Date(e.faellig) < heuteStart();
 const istHeute = (iso) => iso && new Date(iso).toDateString() === new Date().toDateString();
 
+// Phoenix speichert Serien in Worten ("jeden Dienstag") – hier in eine Regel umwandeln
+function regel(e) {
+  if (!e.wiederholung) return null;
+  if (typeof e.wiederholung === 'string') return zeitErkennen(e.wiederholung, e.beginn ? new Date(e.beginn) : new Date()).wiederholung;
+  return e.wiederholung;
+}
+const zeitVon = (d, ganztags) => ganztags ? 'ganztags' : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+// Alle Termin-Vorkommen in einem Zeitraum, Serien aufgefächert
+function terminVorkommen(von, bis) {
+  const liste = [];
+  for (const e of gefiltert('termin')) {
+    if (!e.beginn) continue;
+    for (const wann of vorkommen(e.beginn, regel(e), von, bis)) liste.push({ e, wann });
+  }
+  return liste.sort((a, b) => a.wann - b.wann);
+}
+
 function gefiltert(typ) {
   const q = zst.suche.toLowerCase();
   return [...zst.eintraege.values()].filter((e) =>
@@ -237,14 +256,14 @@ function karte(e) {
 }
 function aufgabeZeile(e) {
   const b = BEREICHE[e.bereich] || BEREICHE.sonstiges;
-  const unter = [e.faellig ? `<small class="${ueberfaellig(e) ? 'ueber' : ''}">${tagText(e.faellig)}</small>` : '', `<small>${b.name}</small>`].filter(Boolean).join(' · ');
+  const unter = [e.faellig ? `<small class="${ueberfaellig(e) ? 'ueber' : ''}">${tagText(e.faellig)}</small>` : '', regel(e) ? `<small>↻ ${esc(wiederholungText(regel(e), e.faellig))}</small>` : '', `<small>${b.name}</small>`].filter(Boolean).join(' · ');
   return `<div class="zeile ${e.status === 'erledigt' ? 'erledigt' : ''}" data-id="${e.id}" style="--farbe:${b.farbe}"><button class="haken" data-haken="${e.id}" title="Erledigt">${I.haken}</button>
     <div class="mitte"><b>${e.prioritaet >= 3 ? '<span class="prio">!!! </span>' : e.prioritaet === 2 ? '<span class="prio">!! </span>' : ''}${esc(e.titel)}</b>${unter}</div>${e.quelle === 'phoenix' ? `<span class="phoenix">${I.phoenix}</span>` : ''}</div>`;
 }
-function terminZeile(e) {
-  const b = BEREICHE[e.bereich] || BEREICHE.sonstiges, d = e.beginn ? new Date(e.beginn) : null;
-  return `<div class="zeile" data-id="${e.id}" style="--farbe:${b.farbe}"><span class="streifen"></span><div class="uhr"><b>${d ? d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '–'}</b><small>${d ? d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) : ''}</small></div>
-    <div class="mitte"><b>${esc(e.titel)}</b><small>${[tagText(e.beginn, false), e.ort, e.google ? 'in Google' : ''].filter(Boolean).map(esc).join(' · ')}</small></div>${e.quelle === 'phoenix' ? `<span class="phoenix">${I.phoenix}</span>` : ''}</div>`;
+function terminZeile(e, wann) {
+  const b = BEREICHE[e.bereich] || BEREICHE.sonstiges, d = wann || (e.beginn ? new Date(e.beginn) : null), r = regel(e);
+  return `<div class="zeile" data-id="${e.id}" style="--farbe:${b.farbe}"><span class="streifen"></span><div class="uhr"><b>${d ? zeitVon(d, e.ganztags) : '–'}</b><small>${d ? d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' }) : ''}</small></div>
+    <div class="mitte"><b>${esc(e.titel)}</b><small>${[d ? tagText(d.toISOString(), false) : '', r ? '↻ ' + wiederholungText(r, e.beginn) : '', e.ort, e.google ? 'in Google' : ''].filter(Boolean).map(esc).join(' · ')}</small></div>${e.quelle === 'phoenix' ? `<span class="phoenix">${I.phoenix}</span>` : ''}</div>`;
 }
 const liste = (zeilen, leer) => zeilen.length ? `<div class="liste">${zeilen.join('')}</div>` : `<div class="leer">${leer}</div>`;
 const abschnitt = (t, unter = '') => `<div class="abschnitt"><h2>${t}</h2><small>${unter}</small></div>`;
@@ -252,12 +271,12 @@ const abschnitt = (t, unter = '') => `<div class="abschnitt"><h2>${t}</h2><small
 function heuteAnsicht() {
   const aufgaben = gefiltert('aufgabe').filter((e) => e.status !== 'erledigt' && (ueberfaellig(e) || istHeute(e.faellig) || (!e.faellig && e.prioritaet >= 3)))
     .sort((a, b) => (a.faellig || '9').localeCompare(b.faellig || '9'));
-  const termine = gefiltert('termin').filter((e) => e.beginn && new Date(e.beginn) >= heuteStart() && new Date(e.beginn) < new Date(heuteStart().getTime() + 2 * 864e5)).sort((a, b) => a.beginn.localeCompare(b.beginn));
+  const termine = terminVorkommen(heuteStart(), new Date(heuteStart().getTime() + 2 * 864e5));
   const ideen = gefiltert('idee').filter((e) => e.status !== 'archiv').sort((a, b) => b.erstellt - a.erstellt).slice(0, 5);
   const panel = (t, unter, inhalt) => `<div class="panel"><div class="panel-titel"><span>${t}</span><small>${unter}</small></div>${inhalt}</div>`;
   return `<div class="kommando">
     <div class="spalte">
-      ${panel('Termine', 'heute & morgen', termine.length ? `<div class="liste">${termine.map(terminZeile).join('')}</div>` : '<div class="leer">Keine Termine. Sag: „Phoenix, trag mir … ein“.</div>')}
+      ${panel('Termine', 'heute & morgen', termine.length ? `<div class="liste">${termine.map((v) => terminZeile(v.e, v.wann)).join('')}</div>` : '<div class="leer">Keine Termine. Sag: „Phoenix, trag mir … ein“.</div>')}
       ${panel('Zu erledigen', aufgaben.length ? aufgaben.length + ' offen' : 'alles klar', aufgaben.length ? `<div class="liste">${aufgaben.map(aufgabeZeile).join('')}</div>` : '<div class="leer">Nichts fällig.</div>')}
     </div>
     <div class="spalte mitte-spalte">${galaxieFeld()}</div>
@@ -286,14 +305,17 @@ function aufgabenAnsicht() {
     + (erledigt.length ? abschnitt('Erledigt') + liste(erledigt.map(aufgabeZeile)) : '');
 }
 function termineAnsicht() {
-  const l = gefiltert('termin').sort((a, b) => (a.beginn || '').localeCompare(b.beginn || ''));
-  const kommend = l.filter((e) => !e.beginn || new Date(e.beginn) >= heuteStart());
+  const kommend = terminVorkommen(heuteStart(), new Date(heuteStart().getTime() + 42 * 864e5));
   const tage = new Map();
-  for (const e of kommend) { const k = e.beginn ? tagText(e.beginn, false) : 'Ohne Datum'; if (!tage.has(k)) tage.set(k, []); tage.get(k).push(e); }
-  const vorbei = l.filter((e) => e.beginn && new Date(e.beginn) < heuteStart()).reverse().slice(0, 10);
-  return ([...tage].map(([t, g]) => abschnitt(t) + liste(g.map(terminZeile))).join('') || '<div class="leer">Keine kommenden Termine.</div>')
-    + (vorbei.length ? abschnitt('Vergangen') + liste(vorbei.map(terminZeile)) : '')
-    + '<p style="color:var(--text-2);font-size:13px;margin-top:16px">Termine, die du Phoenix sagst, landen zusätzlich in deinem Google Kalender – mit Erinnerung aufs Handy.</p>';
+  for (const v of kommend) { const k = tagText(v.wann.toISOString(), false); if (!tage.has(k)) tage.set(k, []); tage.get(k).push(v); }
+  const serien = gefiltert('termin').filter((e) => regel(e));
+  const ohne = gefiltert('termin').filter((e) => !e.beginn);
+  const vorbei = gefiltert('termin').filter((e) => e.beginn && !regel(e) && new Date(e.beginn) < heuteStart()).sort((a, b) => b.beginn.localeCompare(a.beginn)).slice(0, 10);
+  return (serien.length ? abschnitt('Serientermine', serien.length) + liste(serien.map((e) => terminZeile(e, vorkommen(e.beginn, regel(e), new Date(), new Date(Date.now() + 400 * 864e5), 1)[0]))) : '')
+    + ([...tage].map(([t, g]) => abschnitt(t) + liste(g.map((v) => terminZeile(v.e, v.wann)))).join('') || '<div class="leer">Keine Termine in den nächsten sechs Wochen.</div>')
+    + (ohne.length ? abschnitt('Ohne Datum') + liste(ohne.map((e) => terminZeile(e))) : '')
+    + (vorbei.length ? abschnitt('Vergangen') + liste(vorbei.map((e) => terminZeile(e))) : '')
+    + '<p style="color:var(--text-2);font-size:13px;margin-top:16px">Tipp: Schreib einfach „Training jeden Dienstag 19 Uhr“ – Zeit und Wiederholung werden erkannt. Termine, die du Phoenix sagst, landen zusätzlich in Google Kalender.</p>';
 }
 function notizenAnsicht() {
   const l = gefiltert('notiz').sort((a, b) => b.geaendert - a.geaendert);
@@ -338,6 +360,7 @@ function details(id) {
     </div>
     ${e.typ === 'aufgabe' ? `<label class="feld">Fällig<input id="d-faellig" type="datetime-local" value="${lokal(e.faellig)}"></label>` : ''}
     ${e.typ === 'termin' ? `<div class="zweier"><label class="feld">Beginn<input id="d-beginn" type="datetime-local" value="${lokal(e.beginn)}"></label><label class="feld">Ort<input id="d-ort" value="${esc(e.ort || '')}"></label></div>` : ''}
+    ${e.typ === 'termin' || e.typ === 'aufgabe' ? `<label class="feld">Wiederholung (in Worten, leer = keine)<input id="d-wdh" placeholder="z. B. jeden Dienstag, werktags, alle 2 Wochen, monatlich" value="${esc(regel(e) ? wiederholungText(regel(e), e.beginn || e.faellig).replace(' · unbefristet', '') : '')}"></label>` : ''}
     <label class="feld">Stichworte (mit Komma)<input id="d-tags" value="${esc((e.stichworte || []).join(', '))}"></label>
     <div class="knoepfe">
       ${e.typ === 'aufgabe' ? `<button class="btn haupt" data-a="erledigt">${e.status === 'erledigt' ? 'Wieder öffnen' : 'Erledigt'}</button>` : ''}
@@ -355,6 +378,7 @@ function details(id) {
     if ($('#d-faellig')) e.faellig = $('#d-faellig').value ? new Date($('#d-faellig').value).toISOString() : null;
     if ($('#d-beginn')) e.beginn = $('#d-beginn').value ? new Date($('#d-beginn').value).toISOString() : null;
     if ($('#d-ort')) e.ort = $('#d-ort').value;
+    if ($('#d-wdh')) { const w = $('#d-wdh').value.trim(); e.wiederholung = w ? (zeitErkennen(w, new Date(e.beginn || e.faellig || Date.now())).wiederholung || e.wiederholung) : null; }
   };
   box.onclick = async (ev) => {
     const a = ev.target.closest('[data-a]')?.dataset.a; if (!a) return;
@@ -372,21 +396,47 @@ $('.blatt-hinter').onclick = () => ($('#blatt').hidden = true);
 
 /* ================= Eingaben ================= */
 
-async function hinzufuegen() {
+// Was gerade im Text erkannt wird (live beim Tippen)
+let erkannt = null, datumManuell = false;
+function erkennungZeigen() {
   const text = $('#neu-text').value.trim();
-  if (!text) return;
+  erkannt = text ? zeitErkennen(text) : null;
+  const box = $('#erkannt');
+  if (!erkannt || (!erkannt.datum && !erkannt.wiederholung)) { box.hidden = true; if (!datumManuell) $('#neu-datum').value = ''; return; }
+  const typ = zielTyp();
+  if (!datumManuell && erkannt.datum) $('#neu-datum').value = lokal(erkannt.datum.toISOString());
+  const d = erkannt.datum;
+  box.innerHTML = `<span class="erkannt-ic">${I.termin}</span>`
+    + (d ? `<b>${d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}${erkannt.mitZeit ? ', ' + zeitVon(d) : ''}</b>` : '')
+    + (erkannt.wiederholung ? `<span class="serie">↻ ${esc(wiederholungText(erkannt.wiederholung, d?.toISOString()))}</span>` : '')
+    + `<span class="als">→ ${TYPEN[typ]}${erkannt.rest ? ` „${esc(erkannt.rest.slice(0, 40))}“` : ''}</span>`;
+  box.hidden = false;
+}
+// Idee/Notiz mit Uhrzeit oder Serie wird automatisch ein Termin
+const zielTyp = () => (zst.neuTyp === 'idee' || zst.neuTyp === 'notiz') && erkannt && (erkannt.mitZeit || erkannt.wiederholung) ? 'termin' : zst.neuTyp;
+$('#neu-text').addEventListener('input', erkennungZeigen);
+$('#neu-datum').addEventListener('input', () => { datumManuell = !!$('#neu-datum').value; });
+
+async function hinzufuegen() {
+  const roh = $('#neu-text').value.trim();
+  if (!roh) return;
   if (!zst.uid) return hinweis('Bitte zuerst anmelden (gleiches Konto wie Heft).');
+  erkennungZeigen();
+  const typ = zielTyp();
+  const text = erkannt?.rest || roh;
   const datum = $('#neu-datum').value ? new Date($('#neu-datum').value).toISOString() : null;
   const [titel, ...rest] = text.split(/\s+[–-]\s+|:\s+/);
   const e = {
-    id: crypto.randomUUID(), typ: zst.neuTyp, titel: rest.length && titel.length < 70 ? titel : text.slice(0, 120), text: rest.length && titel.length < 70 ? rest.join(': ') : (text.length > 120 ? text : ''),
-    bereich: zst.bereich !== 'alle' ? zst.bereich : bereichRaten(text), stichworte: [], status: 'offen', prioritaet: 1, quelle: 'app', erstellt: Date.now(),
+    id: crypto.randomUUID(), typ, titel: rest.length && titel.length < 70 ? titel : text.slice(0, 120), text: rest.length && titel.length < 70 ? rest.join(': ') : (text.length > 120 ? text : ''),
+    bereich: zst.bereich !== 'alle' ? zst.bereich : bereichRaten(roh), stichworte: [], status: 'offen', prioritaet: 1, quelle: 'app', erstellt: Date.now(),
   };
-  if (e.typ === 'aufgabe') e.faellig = datum;
-  if (e.typ === 'termin') e.beginn = datum;
-  $('#neu-text').value = ''; $('#neu-datum').value = '';
+  if (typ === 'aufgabe') e.faellig = datum;
+  if (typ === 'termin') e.beginn = datum;
+  if ((typ === 'termin' || typ === 'aufgabe') && erkannt?.wiederholung) e.wiederholung = erkannt.wiederholung;
+  if (typ === 'termin' && erkannt && erkannt.datum && !erkannt.mitZeit && !datumManuell) e.ganztags = true;
+  $('#neu-text').value = ''; $('#neu-datum').value = ''; datumManuell = false; erkennungZeigen();
   await speichern(e);
-  hinweis(`${TYPEN[e.typ]} gespeichert · ${BEREICHE[e.bereich].name}`);
+  hinweis(`${TYPEN[e.typ]} gespeichert · ${BEREICHE[e.bereich].name}${e.wiederholung ? ' · ↻ ' + wiederholungText(e.wiederholung, e.beginn || e.faellig) : ''}`);
 }
 $('#hinzu').onclick = hinzufuegen;
 $('#neu-text').onkeydown = (e) => { if (e.key === 'Enter') hinzufuegen(); };
@@ -409,7 +459,15 @@ document.addEventListener('click', async (ev) => {
   const be = ev.target.closest('#filter [data-bereich], #navi [data-bereich]'); if (be) { zst.bereich = zst.bereich === be.dataset.bereich ? 'alle' : be.dataset.bereich; zeichnen(); return; }
   const ty = ev.target.closest('[data-typ]'); if (ty) { zst.neuTyp = ty.dataset.typ; zeichnen(); $('#neu-text').focus(); return; }
   const ha = ev.target.closest('[data-haken]');
-  if (ha) { const e = structuredClone(zst.eintraege.get(ha.dataset.haken)); e.status = e.status === 'erledigt' ? 'offen' : 'erledigt'; await speichern(e); if (e.status === 'erledigt') hinweis('Erledigt ✓'); return; }
+  if (ha) {
+    const e = structuredClone(zst.eintraege.get(ha.dataset.haken)), r = regel(e);
+    // Wiederkehrende Aufgabe: rückt zum nächsten Termin vor, statt zu verschwinden
+    if (r && e.status !== 'erledigt' && e.faellig) {
+      const naechste = vorkommen(e.faellig, r, new Date(Math.max(Date.now(), new Date(e.faellig).getTime() + 60000)), new Date(Date.now() + 800 * 864e5), 1)[0];
+      if (naechste) { e.faellig = naechste.toISOString(); await speichern(e); hinweis(`Erledigt ✓ · nächstes Mal ${tagText(e.faellig)}`); return; }
+    }
+    e.status = e.status === 'erledigt' ? 'offen' : 'erledigt'; await speichern(e); if (e.status === 'erledigt') hinweis('Erledigt ✓'); return;
+  }
   const k = ev.target.closest('#inhalt [data-id]'); if (k) details(k.dataset.id);
 });
 $('#suche').oninput = (e) => { zst.suche = e.target.value; zeichnen(); };
