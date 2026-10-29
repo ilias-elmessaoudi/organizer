@@ -40,6 +40,10 @@ export function galaxie(canvas, { farben, namen, beiKlick }) {
       const tiefe = .9 + r() * .14;
       return { e, b, p: p.map((v) => v * tiefe), worte: worte(e), tags: new Set((e.stichworte || []).map((s) => s.toLowerCase())), puls: r() * 6, a: alt.get(e.id)?.a ?? 0 };
     });
+    // Angetippten Stern auf den neuen Stand übertragen (sonst zeigt die Auswahl ins Leere und die Kugel bleibt stehen)
+    const neu = new Map(knoten.map((k) => [k.e.id, k]));
+    auswahl = auswahl && neu.get(auswahl.e.id) || null;
+    hover = hover && neu.get(hover.e.id) || null;
     hubs = Object.keys(RICHTUNG).filter((b) => knoten.some((k) => k.b === b)).map((b) => ({ b, p: kugel(...RICHTUNG[b]).map((v) => v * .72) }));
     // Verbindungen: gemeinsame Stichworte zählen viel, gemeinsame Wörter etwas, gleicher Bereich wenig
     const paare = [];
@@ -133,7 +137,7 @@ export function galaxie(canvas, { farben, namen, beiKlick }) {
 
     const P = new Map(knoten.map((k) => [k, proj(k.p)]));
     const H2 = new Map(hubs.map((h) => [h.b, proj(h.p)]));
-    const fokus = hover || auswahl;
+    const fokus = P.has(hover) ? hover : P.has(auswahl) ? auswahl : null;
     const nachbarn = new Set();
     if (fokus) for (const k of kanten) { if (k.a === fokus) nachbarn.add(k.c); if (k.c === fokus) nachbarn.add(k.a); }
     ctx.globalCompositeOperation = 'lighter';
@@ -212,7 +216,8 @@ export function galaxie(canvas, { farben, namen, beiKlick }) {
   function schleife(t) {
     const dt = Math.min(50, t - letzte); letzte = t;
     if (!ziehen && !hover) gierung += tempo * dt / 16;
-    malen(t);
+    // Ein Fehler in einem Bild darf die Animation nie dauerhaft anhalten
+    try { malen(t); } catch (f) { console.error(f); }
     raf = sichtbar ? requestAnimationFrame(schleife) : 0;
   }
 
