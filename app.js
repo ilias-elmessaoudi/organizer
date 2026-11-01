@@ -2,6 +2,7 @@
 // Daten liegen im selben Supabase-Projekt wie Heft (Tabelle "eintraege", art = "organizer").
 
 import { galaxie } from './galaxie.js';
+import { diktatEinrichten, diktatEinstellungen } from './diktat.js';
 import { zeitErkennen, vorkommen, wiederholungText } from './zeitparser.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -441,17 +442,12 @@ async function hinzufuegen() {
 $('#hinzu').onclick = hinzufuegen;
 $('#neu-text').onkeydown = (e) => { if (e.key === 'Enter') hinzufuegen(); };
 
-// Diktieren (Spracherkennung des Browsers)
-const Erkennung = window.SpeechRecognition || window.webkitSpeechRecognition;
-let erkennung = null;
-$('#mikro').hidden = !Erkennung;
-$('#mikro').onclick = () => {
-  if (erkennung) { erkennung.stop(); return; }
-  erkennung = new Erkennung(); erkennung.lang = 'de-DE'; erkennung.interimResults = true;
-  const vorher = $('#neu-text').value;
-  erkennung.onresult = (ev) => { $('#neu-text').value = (vorher ? vorher + ' ' : '') + [...ev.results].map((r) => r[0].transcript).join(''); };
-  erkennung.onend = () => { erkennung = null; $('#mikro').classList.remove('an'); };
-  erkennung.start(); $('#mikro').classList.add('an');
+// Diktieren: Mikrofon wählbar, am PC über Phoenix, sonst Browser (diktat.js)
+diktatEinrichten({ feld: $('#neu-text'), mikro: $('#mikro'), melden: hinweis });
+$('#mikro-einst').onclick = async () => {
+  $('#blatt').hidden = false;
+  const aufraeumen = await diktatEinstellungen($('#blatt-box'), () => ($('#blatt').hidden = true));
+  $('#blatt').addEventListener('click', function weg(ev) { if (ev.target.closest('.blatt-hinter')) { aufraeumen?.(); this.removeEventListener('click', weg); } });
 };
 
 document.addEventListener('click', async (ev) => {

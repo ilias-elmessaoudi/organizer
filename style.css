@@ -90,7 +90,17 @@ svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width:
 #neu-datum { background: rgba(12, 8, 24, .8); border: 1px solid var(--rand); border-radius: 4px; padding: 7px 8px; font-size: 12.5px; color: var(--text-2); outline: 0; color-scheme: dark; max-width: 190px; }
 .mikro, .hinzu { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex: none; border: 1px solid var(--rand-hell); }
 .mikro { color: var(--text-2); }
-.mikro.an { background: var(--warn); color: #fff; border-color: var(--warn); box-shadow: 0 0 16px var(--warn); animation: puls 1s infinite alternate; }
+.mikro.an { background: var(--warn); color: #fff; border-color: var(--warn); box-shadow: 0 0 calc(8px + 28px * var(--pegel, 0)) var(--warn); transform: scale(calc(1 + .12 * var(--pegel, 0))); transition: transform .08s, box-shadow .08s; }
+.mikro.denkt { background: var(--akzent); border-color: var(--akzent); box-shadow: var(--glimmen); animation: puls .6s infinite alternate; }
+.mikro-einst { width: 30px; height: 38px; display: grid; place-items: center; flex: none; color: var(--text-2); opacity: .75; }
+.mikro-einst:hover { opacity: 1; color: var(--text); }
+.mikro-einst svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.pegel { height: 12px; margin: 8px 0 6px; border-radius: 6px; background: rgba(255,255,255,.07); overflow: hidden; border: 1px solid var(--rand); }
+.pegel i { display: block; height: 100%; width: 0; background: var(--text-2); transition: width .06s; }
+.pegel i.gut { background: linear-gradient(90deg, #41f2a3, #a46bff); box-shadow: 0 0 10px #41f2a3; }
+.status-liste { display: grid; gap: 6px; margin-top: 8px; text-transform: none; letter-spacing: 0; font: 13.5px "Segoe UI", system-ui, sans-serif; }
+.status-liste .ok { color: #41f2a3; } .status-liste .aus { color: var(--warn); }
+.feld small { display: block; text-transform: none; letter-spacing: 0; font: 12.5px "Segoe UI", system-ui, sans-serif; color: var(--text-2); }
 @keyframes puls { to { opacity: .6; } }
 .hinzu { background: radial-gradient(circle, #c39bff, #7b3fe4); color: #fff; box-shadow: var(--glimmen); }
 
