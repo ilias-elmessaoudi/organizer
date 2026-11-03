@@ -59,6 +59,9 @@ const SCHULE = { 1: [480, 1000], 2: [480, 955], 3: [525, 900], 4: [480, 900], 5:
 const FERIEN = [['2026-10-05', '2026-10-17'], ['2026-12-23', '2027-01-12'], ['2027-03-22', '2027-04-02'], ['2027-06-28', '2027-08-06'],
   ['2027-10-04', '2027-10-16'], ['2027-12-23', '2028-01-11'], ['2028-04-03', '2028-04-14'], ['2028-07-03', '2028-08-11']];
 const BEWEGLICH = ['2027-02-08', '2027-02-09', '2027-05-07', '2027-05-28'];
+// Blockunterricht 10 IT, Schuljahr 2026/27 (Plan Stand 12.01.2026): Montage der Schulwochen. Alle anderen Wochen = Arbeit.
+const BLOCKUNTERRICHT = new Set(['2026-10-19', '2026-10-26', '2026-11-02', '2026-11-09', '2027-01-11', '2027-01-18', '2027-01-25',
+  '2027-04-05', '2027-04-12', '2027-04-19', '2027-06-07', '2027-06-14', '2027-06-21']);
 
 function ostern(j) {
   const a = j % 19, b = Math.floor(j / 100), c = j % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
@@ -88,7 +91,7 @@ function eintrag(id, unterart, standard = {}) {
   return structuredClone(holen(id)) || { id, typ: 'plan', unterart, titel: 'Plan', bereich: 'privat', erstellt: Date.now(), ...standard };
 }
 const vorlage = () => holen('plan-vorlage') || { wochen: {}, standard: 'arbeit', anpassung: {} };
-export const wochenArt = (montag) => vorlage().wochen?.[iso(montag)] || vorlage().standard || 'arbeit';
+export const wochenArt = (montag) => vorlage().wochen?.[iso(montag)] || (BLOCKUNTERRICHT.has(iso(montag)) ? 'schule' : vorlage().standard || 'arbeit');
 
 // Was für ein Tag ist das? (schule | arbeit | frei | wochenende) + Grund
 export function tagArt(d) {
