@@ -108,13 +108,15 @@ async function laden() {
   const { data, error } = await client.from('eintraege').select('id, daten, geaendert, geloescht').eq('art', ART);
   if (error) { statusZeigen('Sync Error', error.message.slice(0, 40), true); return hinweis('Laden fehlgeschlagen: ' + error.message); }
   const offen = new Set(warteschlange().map((e) => e.id));
+  let anders = false;
   for (const z of data) {
     if (offen.has(z.id)) continue;
-    if (z.geloescht) zst.eintraege.delete(z.id);
-    else zst.eintraege.set(z.id, { ...z.daten, id: z.id, geaendert: z.geaendert });
+    const lokal = zst.eintraege.get(z.id);
+    if (z.geloescht) { if (lokal) { zst.eintraege.delete(z.id); anders = true; } }
+    else if (!lokal || lokal.geaendert !== z.geaendert) { zst.eintraege.set(z.id, { ...z.daten, id: z.id, geaendert: z.geaendert }); anders = true; }
   }
-  cacheSichern();
-  zeichnen();
+  // Nur neu zeichnen, wenn sich wirklich etwas geändert hat (sonst flog alle 30 s das Getippte raus)
+  if (anders) { cacheSichern(); spaeterZeichnen(); }
   nachholen();
 }
 
@@ -126,13 +128,14 @@ function live() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'eintraege', filter: `art=eq.${ART}` }, (p) => {
       const z = p.new || p.old;
       if (!z?.id) return;
-      if (p.eventType === 'DELETE' || z.geloescht) zst.eintraege.delete(z.id);
+      if (p.eventType === 'DELETE' || z.geloescht) { if (!zst.eintraege.has(z.id)) return; zst.eintraege.delete(z.id); }
       else {
-        const neu = !zst.eintraege.has(z.id);
+        const lokal = zst.eintraege.get(z.id);
+        if (lokal && lokal.geaendert === z.geaendert) return; // eigenes Echo
         zst.eintraege.set(z.id, { ...z.daten, id: z.id, geaendert: z.geaendert });
-        if (neu && z.daten?.quelle === 'phoenix') hinweis(`Phoenix hat notiert: ${z.daten.titel}`, 4000);
+        if (!lokal && z.daten?.quelle === 'phoenix') hinweis(`Phoenix hat notiert: ${z.daten.titel}`, 4000);
       }
-      cacheSichern(); zeichnen();
+      cacheSichern(); spaeterZeichnen();
     })
     .subscribe();
 }
@@ -140,6 +143,16 @@ function live() {
 setInterval(() => { if (zst.uid && !document.hidden) laden(); }, 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && zst.uid) laden(); });
 addEventListener('online', () => nachholen());
+
+// Änderungen von außen erst zeichnen, wenn Ilias gerade nicht tippt oder zieht
+let zuletztAktiv = 0, wartet = null;
+for (const t of ['pointerdown', 'keydown', 'input']) addEventListener(t, () => { zuletztAktiv = Date.now(); }, { capture: true, passive: true });
+function spaeterZeichnen() {
+  clearTimeout(wartet);
+  const tippt = document.activeElement?.matches?.('#inhalt input, #inhalt textarea, #inhalt select');
+  if (tippt || Date.now() - zuletztAktiv < 4000) { wartet = setTimeout(spaeterZeichnen, 1500); return; }
+  zeichnen();
+}
 
 async function speichern(e) {
   e.geaendert = Date.now();
