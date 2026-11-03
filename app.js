@@ -3,6 +3,7 @@
 
 import { galaxie } from './galaxie.js';
 import { diktatEinrichten, diktatEinstellungen } from './diktat.js';
+import { wochenplanEinrichten, planAnsicht, planVerdrahten, trainingAnsicht, trainingVerdrahten, heutePanel, wochenCheck, cacheAktualisieren } from './wochenplan.js';
 import { zeitErkennen, vorkommen, wiederholungText } from './zeitparser.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -22,6 +23,8 @@ const I = {
   haken: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   phoenix: '<svg viewBox="0 0 24 24"><path d="M12 3c2 3 5 4 5 8a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3 0-5 1-7z"/></svg>',
   galaxie: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="8.5" ry="3.2" transform="rotate(-25 12 12)"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>',
+  plan: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M3.5 9.5h17M8 3v3M16 3v3M7.5 13h4M7.5 16.5h7"/></svg>',
+  training: '<svg viewBox="0 0 24 24"><path d="M3 10v4M6 7.5v9M18 7.5v9M21 10v4M6 12h12"/></svg>',
   logo: '<svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h9M5 17h6"/><circle cx="18" cy="16" r="3"/></svg>',
 };
 
@@ -200,28 +203,32 @@ function terminVorkommen(von, bis) {
 
 function gefiltert(typ) {
   const q = zst.suche.toLowerCase();
-  return [...zst.eintraege.values()].filter((e) =>
+  return [...zst.eintraege.values()].filter((e) => e.typ !== 'plan' &&
     (!typ || e.typ === typ) && (zst.bereich === 'alle' || e.bereich === zst.bereich)
     && (!q || [e.titel, e.text, e.ausbau, ...(e.stichworte || [])].join(' ').toLowerCase().includes(q)));
 }
 
 /* ================= Darstellung ================= */
 
-const ANSICHTEN = { heute: ['Kommando', I.heute], galaxie: ['Galaxie', I.galaxie], idee: ['Ideen', I.idee], aufgabe: ['Aufgaben', I.aufgabe], termin: ['Termine', I.termin], notiz: ['Notizen', I.notiz], alle: ['Alles', I.alle] };
+const ANSICHTEN = { heute: ['Kommando', I.heute], plan: ['Wochenplan', I.plan], training: ['Training', I.training], galaxie: ['Galaxie', I.galaxie], idee: ['Ideen', I.idee], aufgabe: ['Aufgaben', I.aufgabe], termin: ['Termine', I.termin], notiz: ['Notizen', I.notiz], alle: ['Alles', I.alle] };
 
 function zeichnen() {
   const zahl = (t) => [...zst.eintraege.values()].filter((e) => e.typ === t && e.status !== 'erledigt' && e.status !== 'archiv').length;
   $('#navi').innerHTML = Object.entries(ANSICHTEN).map(([k, [n, ic]]) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ic}${n}${TYPEN[k] ? `<span class="zahl">${zahl(k) || ''}</span>` : ''}</button>`).join('')
     + '<div class="titel">Bereiche</div>' + Object.entries(BEREICHE).map(([k, b]) => `<button data-bereich="${k}" class="${zst.bereich === k ? 'an' : ''}"><span class="punkt" style="background:${b.farbe}"></span>${b.name}</button>`).join('');
-  $('#tabs').innerHTML = ['heute', 'galaxie', 'idee', 'aufgabe', 'termin'].map((k) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ANSICHTEN[k][1]}${ANSICHTEN[k][0]}</button>`).join('');
+  $('#tabs').innerHTML = ['heute', 'plan', 'training', 'galaxie', 'idee', 'aufgabe'].map((k) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ANSICHTEN[k][1]}${ANSICHTEN[k][0]}</button>`).join('');
   $('#titel').textContent = ANSICHTEN[zst.ansicht][0];
   $('#art-wahl').innerHTML = Object.entries(TYPEN).map(([k, n]) => `<button data-typ="${k}" class="${k === zst.neuTyp ? 'an' : ''}">${I[k]}${n}</button>`).join('');
   $('#neu-text').placeholder = { idee: 'Neue Idee …', aufgabe: 'Neue Aufgabe …', termin: 'Neuer Termin …', notiz: 'Neue Notiz …' }[zst.neuTyp];
   $('#filter').innerHTML = `<button data-bereich="alle" class="${zst.bereich === 'alle' ? 'an' : ''}">Alle</button>` + Object.entries(BEREICHE).map(([k, b]) => `<button data-bereich="${k}" class="${zst.bereich === k ? 'an' : ''}"><i style="background:${b.farbe}"></i>${b.name}</button>`).join('');
   const ziel = $('#inhalt');
   if (!zst.uid && !zst.eintraege.size) { ziel.innerHTML = anmeldeFormular(); return anmeldenVerdrahten(); }
-  ziel.innerHTML = ({ heute: heuteAnsicht, galaxie: galaxieAnsicht, idee: ideenAnsicht, aufgabe: aufgabenAnsicht, termin: termineAnsicht, notiz: notizenAnsicht, alle: allesAnsicht })[zst.ansicht]();
+  ziel.innerHTML = ({ heute: heuteAnsicht, plan: planAnsicht, training: trainingAnsicht, galaxie: galaxieAnsicht, idee: ideenAnsicht, aufgabe: aufgabenAnsicht, termin: termineAnsicht, notiz: notizenAnsicht, alle: allesAnsicht })[zst.ansicht]();
+  ziel.onclick = null; ziel.onchange = null;
+  if (zst.ansicht === 'plan') planVerdrahten(ziel);
+  if (zst.ansicht === 'training') trainingVerdrahten(ziel);
   galaxieEinhaengen();
+  cacheAktualisieren();
 }
 
 /* ================= Ideen-Galaxie ================= */
@@ -277,6 +284,7 @@ function heuteAnsicht() {
   const panel = (t, unter, inhalt) => `<div class="panel"><div class="panel-titel"><span>${t}</span><small>${unter}</small></div>${inhalt}</div>`;
   return `<div class="kommando">
     <div class="spalte">
+      ${heutePanel()}
       ${panel('Termine', 'heute & morgen', termine.length ? `<div class="liste">${termine.map((v) => terminZeile(v.e, v.wann)).join('')}</div>` : '<div class="leer">Keine Termine. Sag: „Phoenix, trag mir … ein“.</div>')}
       ${panel('Zu erledigen', aufgaben.length ? aufgaben.length + ' offen' : 'alles klar', aufgaben.length ? `<div class="liste">${aufgaben.map(aufgabeZeile).join('')}</div>` : '<div class="leer">Nichts fällig.</div>')}
     </div>
@@ -440,6 +448,7 @@ async function hinzufuegen() {
   hinweis(`${TYPEN[e.typ]} gespeichert · ${BEREICHE[e.bereich].name}${e.wiederholung ? ' · ↻ ' + wiederholungText(e.wiederholung, e.beginn || e.faellig) : ''}`);
 }
 $('#hinzu').onclick = hinzufuegen;
+wochenplanEinrichten({ zst, speichern, hinweis, $, esc, zeichnen });
 $('#neu-text').onkeydown = (e) => { if (e.key === 'Enter') hinzufuegen(); };
 
 // Diktieren: Mikrofon wählbar, am PC über Phoenix, sonst Browser (diktat.js)
@@ -451,6 +460,8 @@ $('#mikro-einst').onclick = async () => {
 };
 
 document.addEventListener('click', async (ev) => {
+  if (zst.ansicht === 'heute' && ev.target.closest('[data-check]')) return wochenCheck();
+  if (ev.target.closest('[data-planlink]')) { zst.ansicht = 'plan'; localStorage.setItem('org.ansicht', 'plan'); zeichnen(); scrollTo(0, 0); return; }
   const an = ev.target.closest('[data-ansicht]'); if (an) { zst.ansicht = an.dataset.ansicht; localStorage.setItem('org.ansicht', zst.ansicht); if (TYPEN[zst.ansicht]) zst.neuTyp = zst.ansicht; zeichnen(); scrollTo(0, 0); return; }
   const be = ev.target.closest('#filter [data-bereich], #navi [data-bereich]'); if (be) { zst.bereich = zst.bereich === be.dataset.bereich ? 'alle' : be.dataset.bereich; zeichnen(); return; }
   const ty = ev.target.closest('[data-typ]'); if (ty) { zst.neuTyp = ty.dataset.typ; zeichnen(); $('#neu-text').focus(); return; }
