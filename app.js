@@ -3,7 +3,8 @@
 
 import { galaxie } from './galaxie.js';
 import { diktatEinrichten, diktatEinstellungen } from './diktat.js';
-import { wochenplanEinrichten, planAnsicht, planVerdrahten, trainingAnsicht, trainingVerdrahten, heutePanel, wochenCheck, cacheAktualisieren } from './wochenplan.js';
+import { wochenplanEinrichten, planAnsicht, planVerdrahten, trainingAnsicht, trainingVerdrahten, heutePanel, wochenCheck, cacheAktualisieren, planTage } from './wochenplan.js';
+import { mitteilungenEinrichten, mitteilungenEinstellungen, erinnerungenAktualisieren } from './mitteilungen.js';
 import { zeitErkennen, vorkommen, wiederholungText } from './zeitparser.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -242,6 +243,7 @@ function zeichnen() {
   if (zst.ansicht === 'training') trainingVerdrahten(ziel);
   galaxieEinhaengen();
   cacheAktualisieren();
+  erinnerungenAktualisieren();
 }
 
 /* ================= Ideen-Galaxie ================= */
@@ -462,6 +464,14 @@ async function hinzufuegen() {
 }
 $('#hinzu').onclick = hinzufuegen;
 wochenplanEinrichten({ zst, speichern, hinweis, $, esc, zeichnen });
+mitteilungenEinrichten({
+  zst, speichern, hinweis, $, esc, client: () => client,
+  terminListe: (von, bis) => terminVorkommen(von, bis).map(({ e, wann }) => ({ e, wann, ganztags: !!e.ganztags || (e.beginn || '').length <= 10 })),
+  aufgabenListe: (von, bis) => [...zst.eintraege.values()].filter((e) => e.typ === 'aufgabe' && e.status !== 'erledigt' && e.faellig)
+    .flatMap((e) => vorkommen(e.faellig, regel(e), von, bis).map((wann) => ({ e, wann, nurTag: e.faellig.length <= 10 || (wann.getHours() === 0 && wann.getMinutes() === 0) }))),
+  planListe: (n) => planTage(n),
+});
+$('#glocke').onclick = () => { $('#blatt').hidden = false; mitteilungenEinstellungen($('#blatt-box'), () => ($('#blatt').hidden = true)); };
 $('#neu-text').onkeydown = (e) => { if (e.key === 'Enter') hinzufuegen(); };
 
 // Diktieren: Mikrofon wählbar, am PC über Phoenix, sonst Browser (diktat.js)

@@ -288,6 +288,12 @@ svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width:
 .ueb-edit input { padding: 8px; border-radius: 4px; border: 1px solid var(--rand); background: rgba(12,8,24,.8); color: var(--text); font-size: 13px; min-width: 0; }
 .ueb-edit button { color: var(--warn); }
 
+.glocke { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--rand-hell); color: var(--text-2); flex: none; }
+.glocke:hover { color: var(--text); box-shadow: var(--glimmen); }
+.glocke svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.schalter { display: flex; align-items: center; gap: 10px; padding: 8px 2px; font-size: 14px; cursor: pointer; border-bottom: 1px solid rgba(164,107,255,.08); }
+.schalter input { width: 18px; height: 18px; accent-color: var(--akzent); }
+
 .tabs { display: none; }
 
 @media (max-width: 1180px) {

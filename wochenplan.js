@@ -709,6 +709,14 @@ const $blatt = () => A.$('#blatt-box');
 const blattAuf = () => { A.$('#blatt').hidden = false; };
 const blattZu = () => { A.$('#blatt').hidden = true; };
 
+// Für die Mitteilungen: alle Blöcke der nächsten n Tage
+export function planTage(n) {
+  const heute = new Date(); heute.setHours(0, 0, 0, 0);
+  const aus = [];
+  for (let i = 0; i < n; i++) { const d = plusTage(heute, i); for (const b of tagPlan(d)) aus.push({ datum: d, b }); }
+  return aus;
+}
+
 /* ================= Für Phoenix: die nächsten 14 Tage ausgerechnet ================= */
 
 let cacheZeit = 0;
