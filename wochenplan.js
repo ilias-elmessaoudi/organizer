@@ -738,6 +738,9 @@ export function cacheAktualisieren() {
   }, 1500);
 }
 
+// Datums-Hilfen auch fürs Berichtsheft
+export { iso, ausIso, plusTage, montagVon, kw };
+
 // Markierung „jetzt“ jede Minute nachziehen, ohne alles neu zu zeichnen
 setInterval(() => {
   const jm = jetztMin();

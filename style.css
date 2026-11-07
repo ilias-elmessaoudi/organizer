@@ -327,3 +327,60 @@ svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width:
   .tabs button.an { color: var(--akzent); }
   .tabs button.an svg { filter: drop-shadow(0 0 5px var(--akzent)); }
 }
+
+/* ================= Berichtsheft ================= */
+.b-knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
+.b-knopf { padding: 9px 15px; border: 1px solid var(--rand-hell); border-radius: 999px; font-family: var(--hud); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--text); }
+.b-knopf.haupt { background: radial-gradient(circle, #c39bff, #7b3fe4); border-color: transparent; color: #fff; box-shadow: var(--glimmen); }
+.b-knopf:disabled { opacity: .5; cursor: wait; }
+.plan-stat span.warn b { color: var(--warn); }
+.b-hinweis { display: block; width: 100%; text-align: left; margin-bottom: 12px; border-color: var(--rand-hell); }
+.b-hinweis b { display: block; font-family: var(--hud); letter-spacing: .14em; font-size: 13px; text-transform: uppercase; color: var(--akzent); }
+.b-hinweis small { display: block; margin-top: 3px; color: var(--text); font-size: 13.5px; }
+.b-eingabe { margin-bottom: 12px; }
+.b-zeile { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.b-zeile:first-of-type { margin-top: 0; }
+.b-eingabe select, .b-eingabe input, .b-tag select, .b-punkt, .b-std { background: var(--flaeche-2); border: 1px solid var(--rand); border-radius: 4px; padding: 9px 10px; min-width: 0; font-size: 16px; }
+.b-eingabe select option, .b-tag select option { background: #120b24; color: var(--text); }
+.b-eingabe select { flex: 1; }
+.b-zeile input { flex: 1; }
+.b-zeile button { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--rand); }
+.b-zeile button.hinzu { border: 0; }
+.b-zeile button svg, .b-mehr svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.b-tage { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 12px; }
+.b-tag.heute { border-color: var(--rand-hell); box-shadow: var(--glimmen); }
+.b-tag.fehlt { border-color: var(--warn); }
+.b-tag.fehlt .b-tag-kopf small { color: var(--warn); }
+.b-tag-kopf { display: flex; align-items: center; gap: 10px; }
+.b-tag-kopf > div { flex: 1; min-width: 0; }
+.b-tag-kopf b { display: block; font-family: var(--hud); letter-spacing: .12em; font-size: 15px; }
+.b-tag-kopf small { color: var(--text-2); font-size: 12px; }
+.b-tag-kopf select { padding: 6px 8px; font-size: 13px; }
+.b-mehr { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--rand); display: grid; place-items: center; color: var(--text-2); }
+.b-leer { color: var(--text-2); font-size: 13px; padding: 12px 2px 2px; }
+.b-punkte { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.b-punkte li { display: flex; align-items: center; gap: 6px; }
+.b-punkt { flex: 1; font-size: 14px; padding: 7px 8px; }
+.b-std { width: 58px; flex: none; font-size: 13px; padding: 7px 6px; text-align: center; }
+.b-chip { flex: none; width: 58px; padding: 5px 0; border-radius: 999px; font-size: 10.5px; text-align: center; border: 1px solid var(--rand-hell); color: var(--text); }
+.b-chip.betrieb { border-color: var(--business); color: var(--business); }
+.b-chip.unterweisung { border-color: var(--volleyball); color: var(--volleyball); }
+.b-chip.schule { border-color: var(--gut); color: var(--gut); }
+.b-weg { flex: none; width: 26px; height: 30px; color: var(--text-2); }
+.b-weg:hover { color: var(--warn); }
+@media (max-width: 520px) {
+  .b-punkte li { flex-wrap: wrap; }
+  .b-punkt { flex-basis: calc(100% - 70px); order: 2; }
+  .b-chip { order: 1; }
+  .b-std { order: 3; margin-left: 66px; }
+  .b-weg { order: 4; margin-left: auto; }
+}
+/* Kopfzeile am Handy: Lange Titel dürfen das Suchfeld schmaler machen, statt die Seite zu verbreitern */
+@media (max-width: 700px) {
+  .kopf .rechts { min-width: 0; flex: 0 1 auto; gap: 10px; }
+  .kopf .links { flex: none; max-width: 62%; }
+  .suche { flex: 0 1 140px; width: auto; min-width: 0; padding: 0 8px; }
+  .glocke { flex: none; }
+}@media (max-width: 420px) {
+  .tabs button { font-size: 9.5px; letter-spacing: .03em; }
+}

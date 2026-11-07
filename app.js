@@ -5,6 +5,7 @@ import { galaxie } from './galaxie.js';
 import { diktatEinrichten, diktatEinstellungen } from './diktat.js';
 import { wochenplanEinrichten, planAnsicht, planVerdrahten, trainingAnsicht, trainingVerdrahten, heutePanel, wochenCheck, cacheAktualisieren, planTage } from './wochenplan.js';
 import { mitteilungenEinrichten, mitteilungenEinstellungen, erinnerungenAktualisieren } from './mitteilungen.js';
+import { berichtEinrichten, berichtAnsicht, berichtVerdrahten, berichtHinweis } from './berichtsheft.js';
 import { zeitErkennen, vorkommen, wiederholungText } from './zeitparser.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -26,6 +27,7 @@ const I = {
   galaxie: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="8.5" ry="3.2" transform="rotate(-25 12 12)"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>',
   plan: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M3.5 9.5h17M8 3v3M16 3v3M7.5 13h4M7.5 16.5h7"/></svg>',
   training: '<svg viewBox="0 0 24 24"><path d="M3 10v4M6 7.5v9M18 7.5v9M21 10v4M6 12h12"/></svg>',
+  bericht: '<svg viewBox="0 0 24 24"><path d="M6 3.5h11a1.5 1.5 0 0 1 1.5 1.5v15a.5.5 0 0 1-.5.5H6.5a2 2 0 0 1 0-4H18.500M5 18.500V5a1.5 1.5 0 0 1 1-1.500M9 8h6M9 11.500h4"/></svg>',
   logo: '<svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h9M5 17h6"/><circle cx="18" cy="16" r="3"/></svg>',
 };
 
@@ -224,23 +226,29 @@ function gefiltert(typ) {
 
 /* ================= Darstellung ================= */
 
-const ANSICHTEN = { heute: ['Kommando', I.heute], plan: ['Wochenplan', I.plan], training: ['Training', I.training], galaxie: ['Galaxie', I.galaxie], idee: ['Ideen', I.idee], aufgabe: ['Aufgaben', I.aufgabe], termin: ['Termine', I.termin], notiz: ['Notizen', I.notiz], alle: ['Alles', I.alle] };
+const ANSICHTEN = { heute: ['Kommando', I.heute], plan: ['Wochenplan', I.plan], training: ['Training', I.training], bericht: ['Berichtsheft', I.bericht], galaxie: ['Galaxie', I.galaxie], idee: ['Ideen', I.idee], aufgabe: ['Aufgaben', I.aufgabe], termin: ['Termine', I.termin], notiz: ['Notizen', I.notiz], alle: ['Alles', I.alle] };
 
 function zeichnen() {
   const zahl = (t) => [...zst.eintraege.values()].filter((e) => e.typ === t && e.status !== 'erledigt' && e.status !== 'archiv').length;
   $('#navi').innerHTML = Object.entries(ANSICHTEN).map(([k, [n, ic]]) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ic}${n}${TYPEN[k] ? `<span class="zahl">${zahl(k) || ''}</span>` : ''}</button>`).join('')
     + '<div class="titel">Bereiche</div>' + Object.entries(BEREICHE).map(([k, b]) => `<button data-bereich="${k}" class="${zst.bereich === k ? 'an' : ''}"><span class="punkt" style="background:${b.farbe}"></span>${b.name}</button>`).join('');
-  $('#tabs').innerHTML = ['heute', 'plan', 'training', 'galaxie', 'idee', 'aufgabe'].map((k) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ANSICHTEN[k][1]}${ANSICHTEN[k][0]}</button>`).join('');
+  $('#tabs').innerHTML = ['heute', 'plan', 'training', 'bericht', 'galaxie', 'idee', 'aufgabe'].map((k) => `<button data-ansicht="${k}" class="${k === zst.ansicht ? 'an' : ''}">${ANSICHTEN[k][1]}${{ bericht: 'Bericht', plan: 'Plan' }[k] || ANSICHTEN[k][0]}</button>`).join('');
   $('#titel').textContent = ANSICHTEN[zst.ansicht][0];
   $('#art-wahl').innerHTML = Object.entries(TYPEN).map(([k, n]) => `<button data-typ="${k}" class="${k === zst.neuTyp ? 'an' : ''}">${I[k]}${n}</button>`).join('');
   $('#neu-text').placeholder = { idee: 'Neue Idee …', aufgabe: 'Neue Aufgabe …', termin: 'Neuer Termin …', notiz: 'Neue Notiz …' }[zst.neuTyp];
   $('#filter').innerHTML = `<button data-bereich="alle" class="${zst.bereich === 'alle' ? 'an' : ''}">Alle</button>` + Object.entries(BEREICHE).map(([k, b]) => `<button data-bereich="${k}" class="${zst.bereich === k ? 'an' : ''}"><i style="background:${b.farbe}"></i>${b.name}</button>`).join('');
   const ziel = $('#inhalt');
+  // Im Berichtsheft stören Schnelleingabe und Bereichs-Filter, das Mikrofon gehört dort dem eigenen Feld
+  const imBericht = zst.ansicht === 'bericht';
+  $('#schnell').style.display = imBericht ? 'none' : '';
+  $('#filter').style.display = imBericht ? 'none' : '';
+  if (!imBericht && zst.diktatHier) { zst.diktatHier = false; diktatEinrichten({ feld: $('#neu-text'), mikro: $('#mikro'), melden: hinweis }); }
   if (!zst.uid && !zst.eintraege.size) { ziel.innerHTML = anmeldeFormular(); return anmeldenVerdrahten(); }
-  ziel.innerHTML = ({ heute: heuteAnsicht, plan: planAnsicht, training: trainingAnsicht, galaxie: galaxieAnsicht, idee: ideenAnsicht, aufgabe: aufgabenAnsicht, termin: termineAnsicht, notiz: notizenAnsicht, alle: allesAnsicht })[zst.ansicht]();
+  ziel.innerHTML = ({ heute: heuteAnsicht, plan: planAnsicht, training: trainingAnsicht, bericht: berichtAnsicht, galaxie: galaxieAnsicht, idee: ideenAnsicht, aufgabe: aufgabenAnsicht, termin: termineAnsicht, notiz: notizenAnsicht, alle: allesAnsicht })[zst.ansicht]();
   ziel.onclick = null; ziel.onchange = null;
   if (zst.ansicht === 'plan') planVerdrahten(ziel);
   if (zst.ansicht === 'training') trainingVerdrahten(ziel);
+  if (imBericht) berichtVerdrahten(ziel);
   galaxieEinhaengen();
   cacheAktualisieren();
   erinnerungenAktualisieren();
@@ -299,7 +307,7 @@ function heuteAnsicht() {
   const panel = (t, unter, inhalt) => `<div class="panel"><div class="panel-titel"><span>${t}</span><small>${unter}</small></div>${inhalt}</div>`;
   return `<div class="kommando">
     <div class="spalte">
-      ${heutePanel()}
+      ${berichtHinweis()}${heutePanel()}
       ${panel('Termine', 'heute & morgen', termine.length ? `<div class="liste">${termine.map((v) => terminZeile(v.e, v.wann)).join('')}</div>` : '<div class="leer">Keine Termine. Sag: „Phoenix, trag mir … ein“.</div>')}
       ${panel('Zu erledigen', aufgaben.length ? aufgaben.length + ' offen' : 'alles klar', aufgaben.length ? `<div class="liste">${aufgaben.map(aufgabeZeile).join('')}</div>` : '<div class="leer">Nichts fällig.</div>')}
     </div>
@@ -464,6 +472,7 @@ async function hinzufuegen() {
 }
 $('#hinzu').onclick = hinzufuegen;
 wochenplanEinrichten({ zst, speichern, hinweis, $, esc, zeichnen });
+berichtEinrichten({ zst, speichern, hinweis, $, esc, zeichnen });
 mitteilungenEinrichten({
   zst, speichern, hinweis, $, esc, client: () => client,
   terminListe: (von, bis) => terminVorkommen(von, bis).map(({ e, wann }) => ({ e, wann, ganztags: !!e.ganztags || (e.beginn || '').length <= 10 })),
